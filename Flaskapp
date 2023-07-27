@@ -1,0 +1,72 @@
+import sqlite3
+
+DB_NAME = 'students.db'
+
+def create_table():
+    with sqlite3.connect(DB_NAME) as conn:
+        cursor = conn.cursor()
+        cursor.execute('''CREATE TABLE IF NOT EXISTS students (
+                            student_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            first_name TEXT NOT NULL,
+                            last_name TEXT NOT NULL,
+                            dob TEXT NOT NULL,
+                            amount_due REAL
+                        )''')
+        conn.commit()
+
+create_table()
+from flask import Flask, request, jsonify
+import sqlite3
+
+app = Flask(__name__)
+DB_NAME = 'students.db'
+
+# Database helper function
+def execute_query(query, data=None):
+    with sqlite3.connect(DB_NAME) as conn:
+        cursor = conn.cursor()
+        if data:
+            cursor.execute(query, data)
+        else:
+            cursor.execute(query)
+        conn.commit()
+        return cursor.fetchall()
+
+# Routes for CRUD operations
+@app.route('/students', methods=['POST'])
+def create_student():
+    data = request.json
+    if not data or 'first_name' not in data or 'last_name' not in data or 'dob' not in data:
+        return jsonify({'message': 'Invalid data'}), 400
+
+    execute_query('INSERT INTO students (first_name, last_name, dob, amount_due) VALUES (?, ?, ?, ?)',
+                  (data['first_name'], data['last_name'], data['dob'], data.get('amount_due', 0)))
+    return jsonify({'message': 'Student created successfully'}), 201
+
+@app.route('/students/<int:student_id>', methods=['GET'])
+def get_student(student_id):
+    student = execute_query('SELECT * FROM students WHERE student_id = ?', (student_id,))
+    return jsonify(student[0]) if student else jsonify({'message': 'Student not found'})
+
+@app.route('/students', methods=['GET'])
+def get_students():
+    students = execute_query('SELECT * FROM students')
+    return jsonify(students)
+
+@app.route('/students/<int:student_id>', methods=['PUT'])
+def update_student(student_id):
+    data = request.json
+    if not data or 'first_name' not in data or 'last_name' not in data or 'dob' not in data:
+        return jsonify({'message': 'Invalid data'}), 400
+
+    execute_query('UPDATE students SET first_name = ?, last_name = ?, dob = ?, amount_due = ? WHERE student_id = ?',
+                  (data['first_name'], data['last_name'], data['dob'], data.get('amount_due', 0), student_id))
+    return jsonify({'message': 'Student updated successfully'})
+
+@app.route('/students/<int:student_id>', methods=['DELETE'])
+def delete_student(student_id):
+    execute_query('DELETE FROM students WHERE student_id = ?', (student_id,))
+    return jsonify({'message': 'Student deleted successfully'})
+
+if __name__ == '__main__':
+    app.run(debug=True)
